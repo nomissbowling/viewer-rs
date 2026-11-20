@@ -4,6 +4,17 @@
 use std::{result::Result, error::Error};
 
 use rstk::{self, *};
+use reqwest;
+// use futures::executor::block_on;
+use tokio::runtime::Runtime;
+
+/// reqwest_test
+pub async fn reqwest_test() -> Result<(), Box<dyn Error>> {
+  let url = "http://www.google.com/";
+  let resp = reqwest::get(url).await?;
+  println!("resp len: {}", resp.text().await?.len());
+  Ok(())
+}
 
 /// rstk_test
 pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
@@ -27,5 +38,9 @@ pub fn lib_test() -> Result<(), Box<dyn Error>> {
   let rt = rstk::start_wish().expect("wish");
   assert_eq!(rstk_test(&rt, "test lib")?, ());
   rstk::mainloop();
+//  let r = block_on(reqwest_test());
+  let tr = Runtime::new()?;
+  let r = tr.block_on(reqwest_test());
+  assert_eq!(r?, ());
   Ok(())
 }
