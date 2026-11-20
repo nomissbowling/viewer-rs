@@ -1,0 +1,42 @@
+//! viewer
+//!
+//! Cargo test with [-- --nocapture] or with [-- --show-output]
+//!
+//! - cargo test --bin viewer --release -- --nocapture
+//! - cargo test --bin viewer --release -- --show-output
+//! - cargo run --bin viewer --release
+//! - cargo build --bin viewer --release
+//!
+
+use viewer::core::*;
+
+use std::{result::Result, error::Error};
+
+/// main
+pub fn main() -> Result<(), Box<dyn Error>> {
+  Ok(())
+}
+
+/// viewer test
+pub fn viewer_test(rt: &rstk::TkTopLevel) -> Result<(), Box<dyn Error>> {
+  assert_eq!(rstk_test(rt, "test viewer test")?, ()); // same as lib
+  Ok(())
+}
+
+/// test with [-- --nocapture] or [-- --show-output]
+#[cfg(test)]
+mod tests {
+  use std::{result::Result, error::Error};
+  use viewer::core::*; // lib
+  use crate::*; // main
+
+  /// test viewer
+  #[test]
+  fn test_viewer() -> Result<(), Box<dyn Error>> {
+    let rt = rstk::start_wish().expect("wish");
+    assert_eq!(rstk_test(&rt, "test viewer")?, ()); // same as lib
+    assert_eq!(viewer_test(&rt)?, ());
+    rstk::mainloop();
+    Ok(())
+  }
+}
