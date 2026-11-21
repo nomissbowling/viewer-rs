@@ -1,6 +1,6 @@
 [package]
 name = "viewer"
-version = "0.0.3" # change with html_root_url in lib.rs
+version = "0.0.4" # change with html_root_url in lib.rs
 edition = "2024"
 authors = ["nomissbowling <nomissbowling@yahoo.co.jp>"]
 
@@ -22,8 +22,7 @@ name = "viewer"
 
 [dependencies]
 rstk = { version = "=0.3.0" }
-reqwest = { version = "=0.13.5", features = ["query", "json"] }
-# futures = { version = "=0.3.34", default-features = false, features = ["executor"] }
+reqwest = { version = "=0.13.5", features = ["cookies", "query"] } # , "json"
 tokio = { version = "=1.54.1", features = ["full"] }
 
 thiserror = { version = "=2.0.20" }
