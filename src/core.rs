@@ -1,12 +1,13 @@
 //! core
 //!
 
+use std::fs;
 use std::{result::Result, error::Error};
 use std::time::Duration;
 use std::sync::Arc;
 
 use rstk::{self, *};
-use reqwest::{self, cookie, header, Client};
+use reqwest::{self, multipart, cookie, header, Client};
 use tokio::runtime::Runtime;
 
 /// mk_agent
@@ -27,7 +28,7 @@ pub fn mk_default_headers() -> header::HeaderMap {
   // println!("{}", agent);
   let mut default_headers = header::HeaderMap::new();
   default_headers.insert(header::ACCEPT_ENCODING,
-    header::HeaderValue::from_static("gzip, deflate, br"));
+    header::HeaderValue::from_static("gzip, deflate, br")); // need features
   default_headers.insert(header::USER_AGENT,
     header::HeaderValue::try_from(&agent).expect("user-agent"));
   default_headers
@@ -66,6 +67,45 @@ pub fn reqwest_test(client: &Client, url: &str, q: &[(&str, &str)],
   })())
 }
 
+/// uploader_catbox_litterbox
+/// - This test places a load on the target; use it with caution.
+// (see also ________github_memo.txt)
+pub fn uploader_catbox_litterbox(src: &str) -> Result<(), Box<dyn Error>> {
+  let dst = "unknown.png";
+  let mt = "image/png"; // or guess_type(fname)
+  let dat: Vec<u8> = fs::read(src)?;
+  let part = multipart::Part::bytes(dat).file_name(dst).mime_str(mt)?;
+/*
+  // create *random* hash like https://litter.catbox.moe/xxxxxxxxxxxxxxxx.png
+  let mp = multipart::Form::new()
+    .text("reqtype", "fileupload")
+    .text("time", "24h") // to be expired (1h 12h 24h 72h)
+    .text("fileNameLength", "16") // (16 or 6)
+    .part("fileToUpload", part);
+  let url_post = "https://litterbox.catbox.moe/resources/internals/api.php";
+*/
+  // create always same hash like https://files.catbox.moe/riqo8l.png (forever)
+  let mp = multipart::Form::new()
+    .text("reqtype", "fileupload")
+    .part("fileToUpload", part);
+  let url_post = "https://catbox.moe/user/api.php";
+  let cj = Arc::new(cookie::Jar::default()); // needless to mut cj
+  // let client = reqwest::Client::new();
+  let builder = reqwest::Client::builder().timeout(Duration::from_secs(5))
+    .cookie_provider(cj).default_headers(mk_default_headers());
+  let client = builder.build()?;
+  let h = [("Accept-Language", "ja,en-US;q=0.9,en;q=0.8")];
+  let hdrs = mk_headers(&h);
+  Runtime::new()?.block_on((async || -> Result<(), Box<dyn Error>> {
+    let resp = client.post(url_post).headers(hdrs).multipart(mp).send().await?;
+    println!("Status: {}", resp.status()); // 200 412 500
+    // println!("{:?}", resp.bytes().await?); // may be compressed
+    // println!("{}", resp.text().await?);
+    println!("{}", resp.error_for_status()?.text().await?); // proc 412 500
+    Ok(())
+  })())
+}
+
 /// rstk_test
 pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
   let w = rstk::make_toplevel(rt);
@@ -89,6 +129,9 @@ pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
   let h = [("Custom-Header", "custom header")];
   let b = ""; // set body when post
   assert_eq!(reqwest_test(&client, url, &q, mk_headers(&h), b)?, ());
+
+  // This test places a load on the target; use it with caution.
+  // assert_eq!(uploader_catbox_litterbox("resource/ruby_200x200.png")?, ());
 
   let q = format!("wm geometry {}", w.id());
   // let g = rstk::ask_wish(&q); // not flushed (catch another output)

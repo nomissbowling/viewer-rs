@@ -1,6 +1,6 @@
 [package]
 name = "viewer"
-version = "0.0.4" # change with html_root_url in lib.rs
+version = "0.0.5" # change with html_root_url in lib.rs
 edition = "2024"
 authors = ["nomissbowling <nomissbowling@yahoo.co.jp>"]
 
@@ -22,11 +22,25 @@ name = "viewer"
 
 [dependencies]
 rstk = { version = "=0.3.0" }
-reqwest = { version = "=0.13.5", features = ["cookies", "query"] } # , "json"
-tokio = { version = "=1.54.1", features = ["full"] }
+serde = { version = "=1.0.229", features = ["derive"], optional = true }
+reqwest = { version = "=0.13.5", features = ["gzip", "deflate", "brotli", "charset", "rustls", "multipart", "cookies", "query", "json"], optional = true }
+tokio = { version = "=1.54.1", features = ["full"] } # macros, rt-multi-thread
 
 thiserror = { version = "=2.0.20" }
 anyhow = { version = "=1.0.104" }
 
+[features]
+default = ["serde-reqwest"]
+serde-reqwest = ["dep:serde", "serde/derive", "dep:reqwest", "reqwest/json"]
+# reqwest/json must enable serde, but does not enable Serialize/Deserialize
+# docs.rs will expect --all-features, to avoid it, features enable serde/derive
+
 [package.metadata.docs.rs]
 rustc-args = ["--cfg", "docsrs"]
+# all-features = false
+# no-default-features = true
+features = ["serde-reqwest"]
+# targets = ["x86_64-unknown-linux-gnu"]
+
+### test before cargo publish
+# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --no-deps --all-features
