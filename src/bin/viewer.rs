@@ -33,9 +33,10 @@ mod tests {
   /// test viewer
   #[test]
   fn test_viewer() -> Result<(), Box<dyn Error>> {
-    let rt = rstk::start_wish().expect("wish");
+    let rt = wish_toplevel(640, 480)?;
     assert_eq!(rstk_test(&rt, "test viewer")?, ()); // same as lib
     assert_eq!(viewer_test(&rt)?, ());
+    topmost(&rt)?;
     rstk::mainloop();
     Ok(())
   }

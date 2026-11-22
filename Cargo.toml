@@ -1,6 +1,6 @@
 [package]
 name = "viewer"
-version = "0.0.6" # change with html_root_url in lib.rs
+version = "0.0.7" # change with html_root_url in lib.rs
 edition = "2024"
 authors = ["nomissbowling <nomissbowling@yahoo.co.jp>"]
 
@@ -38,8 +38,8 @@ serde-reqwest = ["dep:serde", "serde/derive", "dep:reqwest", "reqwest/json"]
 
 [package.metadata.docs.rs]
 rustc-args = ["--cfg", "docsrs"]
-all-features = false
-# no-default-features = true
+# all-features = false
+no-default-features = true
 features = ["serde-reqwest"]
 # default-target = "x86_64-unknown-linux-gnu"
 # targets = ["x86_64-unknown-linux-gnu"]

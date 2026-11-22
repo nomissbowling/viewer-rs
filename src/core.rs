@@ -56,8 +56,8 @@ pub fn add_cookies(cj: &Arc<cookie::Jar>, c: &[(&str, &str)], url: &str) ->
   Ok(())
 }
 
-/// reqwest_test
-pub fn reqwest_test(client: &Client, url: &str, q: &[(&str, &str)],
+/// reqwest_get_test
+pub fn reqwest_get_test(client: &Client, url: &str, q: &[(&str, &str)],
   hdrs: header::HeaderMap, b: &str) -> Result<(), Box<dyn Error>> {
   // let lb = Box::leak(format!("{}", b).into_boxed_str()); // (same as below)
   let lb = b.to_string().leak(); // body requires &'static (into &'static str)
@@ -67,6 +67,22 @@ pub fn reqwest_test(client: &Client, url: &str, q: &[(&str, &str)],
     println!("resp {}: len: {}", resp.status(), resp.text().await?.len());
     Ok(())
   })())
+}
+
+/// reqwest_builder_test
+pub fn reqwest_builder_test() -> Result<(), Box<dyn Error>> {
+  // let url = "http://127.0.0.1:8080/"; // test with resource/ua_server.py
+  let url = "https://www.google.com/search"; // https OK
+  let cj = Arc::new(cookie::Jar::default()); // needless to mut cj
+  // add_cookies(&cj, &[("ck0", "foo"), ("ck1", "bar"), ("ck2", "baz")], url)?;
+  // let client = reqwest::Client::new();
+  let builder = reqwest::Client::builder().timeout(Duration::from_secs(5))
+    .cookie_provider(cj).default_headers(mk_default_headers());
+  let client = builder.build()?;
+  let q = [("q", "reqwest"), ("ie", "UTF-8")];
+  let h = [("Custom-Header", "custom header")];
+  let b = ""; // set body when post
+  reqwest_get_test(&client, url, &q, mk_headers(&h), b)
 }
 
 /// guess_type
@@ -132,33 +148,46 @@ pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
   lbl.text(t);
   lbl.grid().layout();
 
-  // let url = "http://127.0.0.1:8080/"; // test with resource/ua_server.py
-  let url = "https://www.google.com/search"; // https OK
-  let cj = Arc::new(cookie::Jar::default()); // needless to mut cj
-  // add_cookies(&cj, &[("ck0", "foo"), ("ck1", "bar"), ("ck2", "baz")], url)?;
-  // let client = reqwest::Client::new();
-  let builder = reqwest::Client::builder().timeout(Duration::from_secs(5))
-    .cookie_provider(cj).default_headers(mk_default_headers());
-  let client = builder.build()?;
-  let q = [("q", "reqwest"), ("ie", "UTF-8")];
-  let h = [("Custom-Header", "custom header")];
-  let b = ""; // set body when post
-  assert_eq!(reqwest_test(&client, url, &q, mk_headers(&h), b)?, ());
+  assert_eq!(reqwest_builder_test()?, ());
 
   // This test places a load on the target; use it with caution.
   // assert_eq!(uploader_catbox_litterbox("resource/ruby_200x200.png")?, ());
 
-  let q = format!("wm geometry {}", w.id());
-  // let g = rstk::ask_wish(&q); // not flushed (catch another output)
-  let g = rstk::ask_wish(&format!("puts [{}]; flush stdout", q)); // safely
+  let g = ask_safely(&format!("wm geometry {}", w.id()));
   println!("geom: {} {} {}", g, w.id(), t);
   Ok(())
 }
 
+/// topmost
+pub fn topmost(w: &TkTopLevel) -> Result<(), Box<dyn Error>> {
+  let c = format!("wm attributes {0} -topmost 1; raise {0}; focus -force {0}",
+    w.id());
+  rstk::tell_wish(&c);
+  Ok(())
+}
+
+/// wish_toplevel
+pub fn wish_toplevel(w: u64, h: u64) -> Result<TkTopLevel, Box<dyn Error>> {
+  rstk::start_wish().map_or(
+    Err("Can not start wish. Tcl/Tk is not installed ?".into()),
+    |rt| { // place toplevel root window to right bottom (no care multi screen)
+      let scw = ask_safely(&format!("winfo screenwidth .")).parse::<u64>()?;
+      let sch = ask_safely(&format!("winfo screenheight .")).parse::<u64>()?;
+      rt.geometry(w, h, (scw - w).try_into()?, (sch - h).try_into()?);
+      Ok(rt)})
+}
+
+/// ask_safely
+pub fn ask_safely(q: &str) -> String {
+  // rstk::ask_wish(&q) // not flushed (catch another output)
+  rstk::ask_wish(&format!("puts [{}]; flush stdout", q)) // safely
+}
+
 /// lib_test
 pub fn lib_test() -> Result<(), Box<dyn Error>> {
-  let rt = rstk::start_wish().expect("wish");
+  let rt = wish_toplevel(320, 240)?;
   assert_eq!(rstk_test(&rt, "test lib")?, ());
+  topmost(&rt)?;
   rstk::mainloop();
   Ok(())
 }
