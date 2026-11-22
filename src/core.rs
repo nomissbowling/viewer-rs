@@ -2,11 +2,13 @@
 //!
 
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::{result::Result, error::Error};
 use std::time::Duration;
 use std::sync::Arc;
 
 use rstk::{self, *};
+use mime_guess;
 use reqwest::{self, multipart, cookie, header, Client};
 use tokio::runtime::Runtime;
 
@@ -67,14 +69,27 @@ pub fn reqwest_test(client: &Client, url: &str, q: &[(&str, &str)],
   })())
 }
 
+/// guess_type
+pub fn guess_type(src: &str) -> String {
+  mime_guess::from_path(Path::new(src)).first_or_octet_stream().as_ref().into()
+}
+
+/// splitext
+pub fn splitext(src: &str) -> String {
+  let p = PathBuf::from(src); // .extension via Option<&OsStr> via Option<&str>
+  let ext = p.extension().map_or("", |osstr| osstr.to_str().map_or("", |e| e));
+  format!("{}{}", if ext.len() > 0 { "." } else { "" }, ext)
+}
+
 /// uploader_catbox_litterbox
 /// - This test places a load on the target; use it with caution.
 // (see also ________github_memo.txt)
 pub fn uploader_catbox_litterbox(src: &str) -> Result<(), Box<dyn Error>> {
-  let dst = "unknown.png";
-  let mt = "image/png"; // or guess_type(fname)
+  let dst = format!("unknown{}", splitext(src));
+  let mt = guess_type(src);
+  println!("{} {} {}", dst, src, mt);
   let dat: Vec<u8> = fs::read(src)?;
-  let part = multipart::Part::bytes(dat).file_name(dst).mime_str(mt)?;
+  let part = multipart::Part::bytes(dat).file_name(dst).mime_str(&mt)?;
 /*
   // create *random* hash like https://litter.catbox.moe/xxxxxxxxxxxxxxxx.png
   let mp = multipart::Form::new()

@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/viewer/0.0.5")]
+#![doc(html_root_url = "https://docs.rs/viewer/0.0.6")]
 //! viewer
 //!
 //! Cargo test with [-- --nocapture] or with [-- --show-output]
