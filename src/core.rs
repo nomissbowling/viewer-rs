@@ -137,6 +137,15 @@ pub fn uploader_catbox_litterbox(src: &str) -> Result<(), Box<dyn Error>> {
   })())
 }
 
+/// downloader
+/// - test with resource/dl_https.tcl
+pub fn downloader(rt: &TkTopLevel, uri: &str) -> Result<(), Box<dyn Error>> {
+  let l = ask_safely(&format!(r#"set_img_uri [idchild {} {}] {} "{}""#,
+    rt.id(), ".lbl", "$img", uri)); // $img: global
+  println!("length: {}", l);
+  Ok(())
+}
+
 /// rstk_test
 pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
   let w = rstk::make_toplevel(rt);
@@ -175,7 +184,7 @@ pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
 
   assert_eq!(reqwest_builder_test()?, ());
 
-  // "https://files.catbox.moe/riqo8l.png"
+  assert_eq!(downloader(rt, "https://files.catbox.moe/riqo8l.png")?, ());
 
   // This test places a load on the target; use it with caution.
   // assert_eq!(uploader_catbox_litterbox("resource/ruby_200x200.png")?, ());
@@ -203,9 +212,62 @@ pub fn wish_toplevel(w: u64, h: u64) -> Result<TkTopLevel, Box<dyn Error>> {
       prepare_funcs();
       let scwh = ask_safely(&format!("wm_sizeloc {} {} {} rb", rt.id(), w, h));
       println!("desktop: {}", scwh);
+      setup_toplevel(&rt);
       Ok(rt)
     }
   )
+}
+
+/// setup_toplevel
+pub fn setup_toplevel(rt: &TkTopLevel) {
+  rstk::tell_wish(r#"
+package require Tk
+package require http
+package require tls
+
+::http::register https 443 [list ::tls::socket -autoservername true]
+
+proc dl_https {uri} {
+  set token [::http::geturl $uri]
+  set dat [::http::data $token]
+  ::http::cleanup $token
+  return $dat
+}
+
+proc set_img_uri {lbl img uri} {
+  $lbl configure -text $uri
+  return [set_img_dat $img [dl_https $uri]]
+}
+
+proc set_img_dat {img dat} {
+  $img configure -data $dat
+  return [string bytelength $dat]
+}
+
+proc idchild {id c} {
+  # set w [if {$id eq {.}} { expr {""} } else { expr {$id} }]
+  set w [string trimright $id {.}]
+  return [expr {"${w}${c}"}]
+}
+
+proc setup_toplevel {id} {
+  set lbl [idchild $id .lbl]
+  # set img [image create photo -data $dat]
+  set img [image create photo]
+  label $lbl -image $img -text {sample} -compound bottom
+  place $lbl -relx 0.5 -rely 0.5 -anchor center
+  # pack $lbl -expand 1
+  # grid $lbl
+  # grid $lbl -row 0 -column 0
+  # grid rowconfigure $id 0 -weight 1
+  # grid columnconfigure $id 0 -weight 1
+  # $lbl configure -image $img
+  # $lbl configure -image {}
+  return $img
+}
+"#);
+  rstk::tell_wish(r#"proc dumb_double_quote {} { return '"' }"#); // overwrite
+  rstk::tell_wish(&format!("set img [setup_toplevel {}]", rt.id())); // global
 }
 
 /// prepare_funcs
