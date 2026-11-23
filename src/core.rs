@@ -141,20 +141,44 @@ pub fn uploader_catbox_litterbox(src: &str) -> Result<(), Box<dyn Error>> {
 pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
   let w = rstk::make_toplevel(rt);
   w.title(t);
-  // w.geometry(800, 600, 200, 150); // 800x600+200+150
-  rstk::tell_wish(&format!("wm geometry {} 800x600", w.id())); // +200+150
+  let ((x, y), z) = ((200, 150), (800, 600));
+  // re-position before first geometry
+  let (x, y) = if t.ends_with("test") { (x / 2, y / 2) } else { (x, y) };
+  w.geometry(z.0, z.1, x, y);
+  // re-set size after first geometry
+  let z = if t.ends_with("test") { (z.0 / 2, z.1 / 2) } else { z };
+/*
+  rstk::tell_wish(&format!("wm geometry {} {}x{}", w.id(), z.0, z.1)); // +x+y
   rstk::tell_wish("update idletasks"); // force change geometry to ask_wish
+  let g = ask_safely(&format!("wm geometry {}", w.id()));
+*/
+  let g = ask_safely(&format!("wm_size {} {} {}", w.id(), z.0, z.1));
+  println!("geometry: {} {} {}", g, w.id(), t);
+  let p = if t.ends_with("lib") { "center" }
+    else { if t.ends_with("test") { "rt" } else { "lb" } };
+  let btn = rstk::make_button(&w);
+  btn.text(p);
+  btn.grid().layout();
   let lbl = rstk::make_label(&w);
   lbl.text(t);
   lbl.grid().layout();
 
+//  let title = t.to_string(); // to keep lifetime (used w finialy before move)
+  btn.clone().command(move || { // must clone btn before move
+/*
+    let g = ask_safely(&format!("wm_loc {} {}", w.id(), btn.cget("text")));
+    println!("geometry: {} {} {}", g, w.id(), title);
+*/
+    let g = ask_safely(&format!("on_btn_clicked {} {}", btn.id(), w.id()));
+    println!("geometry: {}", g);
+  });
+
   assert_eq!(reqwest_builder_test()?, ());
+
+  // "https://files.catbox.moe/riqo8l.png"
 
   // This test places a load on the target; use it with caution.
   // assert_eq!(uploader_catbox_litterbox("resource/ruby_200x200.png")?, ());
-
-  let g = ask_safely(&format!("wm geometry {}", w.id()));
-  println!("geom: {} {} {}", g, w.id(), t);
   Ok(())
 }
 
@@ -171,10 +195,68 @@ pub fn wish_toplevel(w: u64, h: u64) -> Result<TkTopLevel, Box<dyn Error>> {
   rstk::start_wish().map_or(
     Err("Can not start wish. Tcl/Tk is not installed ?".into()),
     |rt| { // place toplevel root window to right bottom (no care multi screen)
-      let scw = ask_safely(&format!("winfo screenwidth .")).parse::<u64>()?;
-      let sch = ask_safely(&format!("winfo screenheight .")).parse::<u64>()?;
+/*
+      let scw = ask_safely("winfo screenwidth .").parse::<u64>()?;
+      let sch = ask_safely("winfo screenheight .").parse::<u64>()?;
       rt.geometry(w, h, (scw - w).try_into()?, (sch - h).try_into()?);
-      Ok(rt)})
+*/
+      prepare_funcs();
+      let scwh = ask_safely(&format!("wm_sizeloc {} {} {} rb", rt.id(), w, h));
+      println!("desktop: {}", scwh);
+      Ok(rt)
+    }
+  )
+}
+
+/// prepare_funcs
+pub fn prepare_funcs() {
+  rstk::tell_wish(r#"
+proc on_btn_clicked {bid id} {
+  return [list [wm_loc $id [$bid cget -text]] $id [wm title $id]]
+}
+
+proc wm_size {id w h} {
+  wm withdraw $id
+  wm geometry $id ${w}x${h}
+  update idletasks
+  wm deiconify $id
+  return [wm geometry $id]
+}
+
+proc wm_loc {id p} {
+  lassign [wm_get_wh $id] w h
+  return [wm_sizeloc $id $w $h $p]
+}
+
+proc wm_sizeloc {id w h p} {
+  lassign [wm_get_scwh $id] scw sch
+  set gw [wm_calcloc $p w $w $scw]
+  set gh [wm_calcloc $p h $h $sch]
+  wm geometry $id ${w}x${h}+${gw}+${gh}
+  return [list $w $h $gw $gh $scw $sch]
+}
+
+proc wm_calcloc {p q s t} {
+  set d [expr {$t - $s}]
+  return [
+    if {$p eq {center}} { expr {$d / 2}
+    } elseif {$p eq {lt}} { expr {0}
+    } elseif {$p eq {rt}} { if {$q eq {w}} { expr {$d} } else { expr {0} }
+    } elseif {$p eq {lb}} { if {$q eq {h}} { expr {$d} } else { expr {0} }
+    } elseif {$p eq {rb}} { expr {$d}
+    } else { expr {$d / 2} }
+  ]
+}
+
+proc wm_get_wh {id} {
+  return [list [winfo width $id] [winfo height $id]]
+}
+
+proc wm_get_scwh {id} {
+  return [list [winfo screenwidth $id] [winfo screenheight $id]]
+}
+"#);
+  rstk::tell_wish(r#"proc dumb_double_quote {} { return '"' }"#);
 }
 
 /// ask_safely
