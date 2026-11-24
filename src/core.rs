@@ -12,6 +12,28 @@ use mime_guess;
 use reqwest::{self, multipart, cookie, header, Client};
 use tokio::runtime::Runtime;
 
+use serde_json;
+use serde::{Serialize, Deserialize};
+
+/// Act
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Act {
+  /// act
+  #[serde(alias = "id")]
+  pub act: String,
+  /// lst
+  #[serde(alias = "list")]
+  pub lst: Vec<String>
+}
+
+/// disp
+pub fn disp(act: &Act) -> Result<(), Box<dyn Error>> {
+  println!("{}", serde_json::to_string(act)?);
+  let a: Act = serde_json::from_str(r#"{"act": "abc", "lst": ["wx", "yz"]}"#)?;
+  println!("{}", serde_json::to_string(&a)?);
+  Ok(())
+}
+
 /// mk_agent
 pub fn mk_agent() -> String {
   let mo = "Mozilla/5.0";
@@ -139,16 +161,16 @@ pub fn uploader_catbox_litterbox(src: &str) -> Result<(), Box<dyn Error>> {
 
 /// downloader
 /// - test with resource/dl_https.tcl
-pub fn downloader(rt: &TkTopLevel, uri: &str) -> Result<(), Box<dyn Error>> {
+pub fn downloader(w: &impl TkWidget, uri: &str) -> Result<(), Box<dyn Error>> {
   let l = ask_safely(&format!(r#"set_img_uri [idchild {} {}] {} "{}""#,
-    rt.id(), ".lbl", "$img", uri)); // $img: global
+    w.id(), ".lbl", "$img", uri)); // $img: global
   println!("length: {}", l);
   Ok(())
 }
 
 /// rstk_test
 pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
-  let w = rstk::make_toplevel(rt);
+  let w = mk_toplevel_with_id(rt, &mk_id(t));
   w.title(t);
   let ((x, y), z) = ((200, 150), (800, 600));
   // re-position before first geometry
@@ -164,11 +186,11 @@ pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
   let g = ask_safely(&format!("wm_size {} {} {}", w.id(), z.0, z.1));
   println!("geometry: {} {} {}", g, w.id(), t);
   let p = if t.ends_with("lib") { "center" }
-    else { if t.ends_with("test") { "rt" } else { "lb" } };
-  let btn = rstk::make_button(&w);
+    else { if t.ends_with("test") { "lb" } else { "rt" } };
+  let btn = mk_button_with_id(&w, ".mybtn");
   btn.text(p);
   btn.grid().layout();
-  let lbl = rstk::make_label(&w);
+  let lbl = mk_label_with_id(&w, ".mylbl");
   lbl.text(t);
   lbl.grid().layout();
 
@@ -218,62 +240,16 @@ pub fn wish_toplevel(w: u64, h: u64) -> Result<TkTopLevel, Box<dyn Error>> {
   )
 }
 
-/// setup_toplevel
-pub fn setup_toplevel(rt: &TkTopLevel) {
-  rstk::tell_wish(r#"
-package require Tk
-package require http
-package require tls
-
-::http::register https 443 [list ::tls::socket -autoservername true]
-
-proc dl_https {uri} {
-  set token [::http::geturl $uri]
-  set dat [::http::data $token]
-  ::http::cleanup $token
-  return $dat
-}
-
-proc set_img_uri {lbl img uri} {
-  $lbl configure -text $uri
-  return [set_img_dat $img [dl_https $uri]]
-}
-
-proc set_img_dat {img dat} {
-  $img configure -data $dat
-  return [string bytelength $dat]
-}
-
-proc idchild {id c} {
-  # set w [if {$id eq {.}} { expr {""} } else { expr {$id} }]
-  set w [string trimright $id {.}]
-  return [expr {"${w}${c}"}]
-}
-
-proc setup_toplevel {id} {
-  set lbl [idchild $id .lbl]
-  # set img [image create photo -data $dat]
-  set img [image create photo]
-  label $lbl -image $img -text {sample} -compound bottom
-  place $lbl -relx 0.5 -rely 0.5 -anchor center
-  # pack $lbl -expand 1
-  # grid $lbl
-  # grid $lbl -row 0 -column 0
-  # grid rowconfigure $id 0 -weight 1
-  # grid columnconfigure $id 0 -weight 1
-  # $lbl configure -image $img
-  # $lbl configure -image {}
-  return $img
-}
-"#);
-  rstk::tell_wish(r#"proc dumb_double_quote {} { return '"' }"#); // overwrite
-  rstk::tell_wish(&format!("set img [setup_toplevel {}]", rt.id())); // global
-}
-
 /// prepare_funcs
 pub fn prepare_funcs() {
   rstk::tell_wish(r#"
-set num 0
+set base_dir [file dirname [file normalize [info script]]]
+source -encoding utf-8 [file join $base_dir resource prepare_funcs.tcl]
+
+proc on_btn_clicked {bid id} {
+  set nb [new_btn $id {my button} [list {on_btn_clicked} $bid $id]]
+  return [list [wm_loc $id [$bid cget -text]] $id [wm title $id] $nb]
+}
 
 proc new_btn {id t c} {
   global num
@@ -286,53 +262,51 @@ proc new_btn {id t c} {
   return $bid
 }
 
-proc on_btn_clicked {bid id} {
-  set nb [new_btn $id {my button} [list {on_btn_clicked} $bid $id]]
-  return [list [wm_loc $id [$bid cget -text]] $id [wm title $id] $nb]
-}
-
-proc wm_size {id w h} {
-  wm withdraw $id
-  wm geometry $id ${w}x${h}
-  update idletasks
-  wm deiconify $id
-  return [wm geometry $id]
-}
-
-proc wm_loc {id p} {
-  lassign [wm_get_wh $id] w h
-  return [wm_sizeloc $id $w $h $p]
-}
-
-proc wm_sizeloc {id w h p} {
-  lassign [wm_get_scwh $id] scw sch
-  set gw [wm_calcloc $p w $w $scw]
-  set gh [wm_calcloc $p h $h $sch]
-  wm geometry $id ${w}x${h}+${gw}+${gh}
-  return [list $w $h $gw $gh $scw $sch]
-}
-
-proc wm_calcloc {p q s t} {
-  set d [expr {$t - $s}]
-  return [
-    if {$p eq {center}} { expr {$d / 2}
-    } elseif {$p eq {lt}} { expr {0}
-    } elseif {$p eq {rt}} { if {$q eq {w}} { expr {$d} } else { expr {0} }
-    } elseif {$p eq {lb}} { if {$q eq {h}} { expr {$d} } else { expr {0} }
-    } elseif {$p eq {rb}} { expr {$d}
-    } else { expr {$d / 2} }
-  ]
-}
-
-proc wm_get_wh {id} {
-  return [list [winfo width $id] [winfo height $id]]
-}
-
-proc wm_get_scwh {id} {
-  return [list [winfo screenwidth $id] [winfo screenheight $id]]
-}
+set num 0
 "#);
   rstk::tell_wish(r#"proc dumb_double_quote {} { return '"' }"#);
+}
+
+/// setup_toplevel
+pub fn setup_toplevel(rt: &TkTopLevel) {
+  rstk::tell_wish(r#"
+source -encoding utf-8 [file join $base_dir resource setup_toplevel.tcl]
+source -encoding utf-8 [file join $base_dir resource dl_https.tcl]
+"#);
+  rstk::tell_wish(r#"proc dumb_double_quote {} { return '"' }"#); // overwrite
+  rstk::tell_wish(&format!("set img [setup_toplevel {}]", rt.id())); // global
+}
+
+/// mk_id
+pub fn mk_id(t: &str) -> String {
+  format!(".{}", t.replace(" ", "_"))
+}
+
+/// mk_with_checked_id
+pub fn mk_with_checked_id(p: &impl TkWidget, id: &str, w: &str) -> String {
+  let wid = if id.starts_with(".") { id }
+    else { eprintln!("{} id forget [.]{}", w, id); &format!(".{}", id) };
+  ask_safely(&format!("{} [idchild {} {}]", w, p.id(), wid))
+}
+
+/// mk_toplevel_with_id
+pub fn mk_toplevel_with_id(p: &impl TkWidget, id: &str) -> TkTopLevel {
+  TkTopLevel{id: mk_with_checked_id(p, id, "toplevel")}
+}
+
+/// mk_frame_with_id
+pub fn mk_frame_with_id(p: &impl TkWidget, id: &str) -> TkFrame {
+  TkFrame{id: mk_with_checked_id(p, id, "ttk::frame")}
+}
+
+/// mk_button_with_id
+pub fn mk_button_with_id(p: &impl TkWidget, id: &str) -> TkButton {
+  TkButton{id: mk_with_checked_id(p, id, "ttk::button")}
+}
+
+/// mk_label_with_id
+pub fn mk_label_with_id(p: &impl TkWidget, id: &str) -> TkLabel {
+  TkLabel{id: mk_with_checked_id(p, id, "ttk::label")}
 }
 
 /// ask_safely
@@ -347,5 +321,6 @@ pub fn lib_test() -> Result<(), Box<dyn Error>> {
   assert_eq!(rstk_test(&rt, "test lib")?, ());
   topmost(&rt)?;
   rstk::mainloop();
+  assert_eq!(disp(&Act{act: "xyz".into(), lst: vec!["ab".into(), "cd".into()]})?, ());
   Ok(())
 }
