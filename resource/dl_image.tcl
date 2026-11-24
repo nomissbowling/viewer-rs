@@ -12,9 +12,12 @@ source -encoding utf-8 [file join $base_dir dl_https.tcl]
 # }
 
 wm geometry . 800x600
-# set img [setup_toplevel .]
+setup_toplevel . im0
+
 toplevel .t
 wm geometry .t 800x600
-set img [setup_toplevel .t]
+setup_toplevel .t im1
 
-puts [set_img_uri [idchild .t .lbl] $img "https://files.catbox.moe/riqo8l.png"]
+set uri "https://files.catbox.moe/riqo8l.png"
+puts [set_img_uri [idchild . .lbl] im0 $uri]
+puts [set_img_uri [idchild .t .lbl] im1 $uri]

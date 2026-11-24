@@ -78,7 +78,7 @@ set dat [src data -format png]
 # PNG... (output long long data)
 string bytelength [src data -format png]
 # 66771
-set encoded [binary encode base64 [src data -format png]]
+set encoded [binary encode base64 -maxlen 0 [src data -format png]]
 # (base64)
 string bytelength $encoded
 # 59776
