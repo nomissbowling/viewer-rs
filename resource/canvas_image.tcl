@@ -3,8 +3,8 @@
 package require Tk
 
 set base_dir [file dirname [file normalize [info script]]]
-source -encoding utf-8 [file join $base_dir prepare_funcs.tcl]
-source -encoding utf-8 [file join $base_dir canvas_tools.tcl]
+source -encoding utf-8 [file join $base_dir wk/prepare_funcs.tcl]
+source -encoding utf-8 [file join $base_dir wk/canvas_tools.tcl]
 
 toplevel .t
 wm geometry .t 800x600

@@ -160,25 +160,31 @@ pub fn uploader_catbox_litterbox(src: &str) -> Result<(), Box<dyn Error>> {
 }
 
 /// downloader
-/// - test with resource/dl_https.tcl
-pub fn downloader(w: &impl TkWidget, im: &str, uri: &str) ->
+/// - likes resource/dl_image.tcl
+pub fn downloader(lbl: &str, im: &str, uri: &str) ->
   Result<(), Box<dyn Error>> {
-  let l = ask_safely(&format!(r#"set_img_uri [idchild {} {}] {} "{}""#,
-    w.id(), ".lbl", im, uri));
+  let l = ask_safely(&format!("set_img_uri {} {} {{{}}}", lbl, im, uri));
   println!("length: {}", l);
   Ok(())
+}
+
+/// canvas_toplevel
+pub fn canvas_toplevel(rt: &TkTopLevel, cv: &str, cl: &str, im: &str,
+  sz: (u64, u64)) -> String {
+  ask_safely(&format!("canvas_toplevel {} {} {} {} {} {}",
+    rt.id(), cv, cl, im, sz.0, sz.1))
 }
 
 /// rstk_test
 pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
   let w = mk_toplevel_with_id(rt, &mk_id(t));
   w.title(t);
-  let ((x, y), z) = ((200, 150), (800, 600));
+  let ((x, y), sz) = ((200, 150), (800, 600));
   // re-position before first geometry
   let (x, y) = if t.ends_with("test") { (x / 2, y / 2) } else { (x, y) };
-  w.geometry(z.0, z.1, x, y);
+  w.geometry(sz.0, sz.1, x, y);
   // re-set size after first geometry
-  let z = if t.ends_with("test") { (z.0 / 2, z.1 / 2) } else { z };
+  let z = if t.ends_with("test") { (sz.0 / 2, sz.1 / 2) } else { sz };
 /*
   rstk::tell_wish(&format!("wm geometry {} {}x{}", w.id(), z.0, z.1)); // +x+y
   rstk::tell_wish("update idletasks"); // force change geometry to ask_wish
@@ -189,8 +195,10 @@ pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
 
   let p = if t.ends_with("lib") { "center" }
     else { if t.ends_with("test") { "lb" } else { "rt" } };
-  setup_toplevel(&w, p); // overload for downloader (before move)
-  assert_eq!(downloader(&w, p, "https://files.catbox.moe/riqo8l.png")?, ());
+
+  // w before move
+  let fql = canvas_toplevel(&w, ".cv", ".lbl", p, (sz.0 / 2, sz.1 / 2));
+  assert_eq!(downloader(&fql, p, "https://files.catbox.moe/riqo8l.png")?, ());
 
   let btn = mk_button_with_id(&w, ".mybtn");
   btn.text(p);
@@ -234,50 +242,30 @@ pub fn wish_toplevel(w: u64, h: u64) -> Result<TkTopLevel, Box<dyn Error>> {
       let sch = ask_safely("winfo screenheight .").parse::<u64>()?;
       rt.geometry(w, h, (scw - w).try_into()?, (sch - h).try_into()?);
 */
-      prepare_funcs();
+      sources(None, "resource", vec![
+        "net/dl_https.tcl", "wk/prepare_funcs.tcl", "wk/canvas_toplevel.tcl",
+        "etc/custom.tcl"]);
       let scwh = ask_safely(&format!("wm_sizeloc {} {} {} rb", rt.id(), w, h));
       println!("desktop: {}", scwh);
-      setup_toplevel(&rt, "center");
+      let _fql = canvas_toplevel(&rt, ".cv", ".lbl", "center", (w, h));
       Ok(rt)
     }
   )
 }
 
-/// prepare_funcs
-pub fn prepare_funcs() {
-  rstk::tell_wish(r#"
-set base_dir [file dirname [file normalize [info script]]]
-source -encoding utf-8 [file join $base_dir resource prepare_funcs.tcl]
-
-proc on_btn_clicked {bid id} {
-  set nb [new_btn $id {my button} [list {on_btn_clicked} $bid $id]]
-  return [list [wm_loc $id [$bid cget -text]] $id [wm title $id] $nb]
-}
-
-proc new_btn {id t c} {
-  global num
-  set bid [expr {"$id.mybtn_$num"}]
-  ttk::button $bid -text [expr {"${t}_$num"}] -command $c
-  # must match append style pack/grid on the parent
-  # pack $bid -padx 10 -pady 10
-  grid $bid -column 0 -padx 10 -pady 10
-  set num [expr {$num + 1}]
-  return $bid
-}
-
-set num 0
-"#);
-  rstk::tell_wish(r#"proc dumb_double_quote {} { return '"' }"#);
-}
-
-/// setup_toplevel
-pub fn setup_toplevel(rt: &TkTopLevel, im: &str) {
-  rstk::tell_wish(r#"
-source -encoding utf-8 [file join $base_dir resource setup_toplevel.tcl]
-source -encoding utf-8 [file join $base_dir resource dl_https.tcl]
-"#);
-  rstk::tell_wish(r#"proc dumb_double_quote {} { return '"' }"#); // overwrite
-  rstk::tell_wish(&format!("setup_toplevel {} {}", rt.id(), im));
+/// sources
+/// - cwd: (None: env TCL_WKTK or current) or Some(cwd)
+/// - p: middle path to sources
+/// - srcs: vec sources
+pub fn sources(cwd: Option<&str>, p: &str, srcs: Vec<&str>) {
+  let wd = cwd.map_or_else(|| std::env::var("TCL_WKTK").map_or_else(|_err| {
+    ask_safely("set current [file dirname [file normalize [info script]]]");
+    "$current".into()
+  }, |tcl_wktk| tcl_wktk), |wd| wd.into());
+  srcs.into_iter().for_each(|src| {
+    rstk::tell_wish(&format!(
+      "source -encoding utf-8 [file join {} {} {}]", wd, p, src));
+  });
 }
 
 /// mk_id

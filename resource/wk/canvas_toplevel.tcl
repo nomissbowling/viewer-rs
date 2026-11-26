@@ -1,8 +1,8 @@
 set script_dir [file dirname [file normalize [info script]]]
-source -encoding utf-8 [file join $script_dir canvas_tools.tcl]
+source -encoding utf-8 [file join $script_dir ../wk/canvas_tools.tcl]
 
-proc setup_toplevel {id im} {
-  set lbl [idchild $id .lbl]
+proc canvas_toplevel {id cv cl im w h} {
+  set lbl [idchild $id $cl]
   # set img [image create photo $im -data $dat]
   set img [image create photo $im]
   # set img [image create photo]
@@ -19,8 +19,10 @@ proc setup_toplevel {id im} {
   label $lbl -text {sample}
   place $lbl -relx 0.3 -rely 0.0
   set tg {imtag0}
-  set c [mk_canvas_with_id $id .cv $tg 400 300]
-  $c create image 200 150 -image $img -anchor center -tags $tg
+  set c [mk_canvas_with_id $id $cv $tg $w $h]
+  set cw [expr {$w / 2}]
+  set ch [expr {$h / 2}]
+  $c create image $cw $ch -image $img -anchor center -tags $tg
   place $c -relx 0.2 -rely 0.2
-  return {}
+  return $lbl
 }
