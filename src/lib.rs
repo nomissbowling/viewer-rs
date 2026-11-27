@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/viewer/0.0.14")]
+#![doc(html_root_url = "https://docs.rs/viewer/0.0.15")]
 //! viewer
 //!
 //! Cargo test with [-- --nocapture] or with [-- --show-output]
@@ -8,6 +8,8 @@
 //!
 
 pub mod core;
+pub mod ut;
+pub mod act;
 
 /// test with [-- --nocapture] or [-- --show-output]
 #[cfg(test)]

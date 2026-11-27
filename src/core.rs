@@ -1,83 +1,17 @@
 //! core
 //!
 
+use crate::{ut, act::*};
+
 use std::fs;
-use std::path::{Path, PathBuf};
 use std::{result::Result, error::Error};
 use std::time::Duration;
 use std::sync::Arc;
 
 use wktk::{core::*, wk};
 use rstk::{self, *};
-use mime_guess;
 use reqwest::{self, multipart, cookie, header, Client};
 use tokio::runtime::Runtime;
-
-use serde_json;
-use serde::{Serialize, Deserialize};
-
-/// Act
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Act {
-  /// act
-  #[serde(alias = "id")]
-  pub act: String,
-  /// lst
-  #[serde(alias = "list")]
-  pub lst: Vec<String>
-}
-
-/// impl fmt::Display for Act
-impl std::fmt::Display for Act {
-  /// fmt
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}", serde_json::to_string(self).map_or(format!("{{}}"), |s| s))
-  }
-}
-
-/// mk_agent
-pub fn mk_agent() -> String {
-  let mo = "Mozilla/5.0";
-  let os = "Rust"; // "Windows NT 10.0";
-  let cpu = "Viewer"; // "Win64; x64";
-  let rv = "160.0";
-  let si = format!("{}; {}; rv:{}", os, cpu, rv);
-  let pf = "Gecko/20100101";
-  let br = "Firefox";
-  format!("{} ({}) {} {}/{}", mo, si, pf, br, rv)
-}
-
-/// mk_default_headers (contains Accept: */*)
-pub fn mk_default_headers() -> header::HeaderMap {
-  let agent = mk_agent();
-  // println!("{}", agent);
-  let mut default_headers = header::HeaderMap::new();
-  default_headers.insert(header::ACCEPT_ENCODING,
-    header::HeaderValue::from_static("gzip, deflate, br")); // need features
-  default_headers.insert(header::USER_AGENT,
-    header::HeaderValue::try_from(&agent).expect("user-agent"));
-  default_headers
-}
-
-/// mk_headers
-pub fn mk_headers(h: &[(&str, &str)]) -> header::HeaderMap {
-  let mut headers = header::HeaderMap::new();
-  h.iter().for_each(|&(k, v)| {
-    headers.insert(header::HeaderName::try_from(k).expect("header key"),
-      header::HeaderValue::try_from(v).expect("header value"));
-  });
-  headers
-}
-
-/// add_cookies (needless to mut cj)
-pub fn add_cookies(cj: &Arc<cookie::Jar>, c: &[(&str, &str)], url: &str) ->
-  Result<(), Box<dyn Error>> {
-  let pu = reqwest::Url::parse(url)?;
-  c.iter().for_each(|&(k, v)| {
-    cj.add_cookie_str(&format!("{}={}", k, v), &pu);
-  });
-  Ok(())
-}
 
 /// reqwest_get_test
 pub fn reqwest_get_test(client: &Client, url: &str, q: &[(&str, &str)],
@@ -97,35 +31,23 @@ pub fn reqwest_builder_test() -> Result<(), Box<dyn Error>> {
   // let url = "http://127.0.0.1:8080/"; // test with resource/ua_server.py
   let url = "https://www.google.com/search"; // https OK
   let cj = Arc::new(cookie::Jar::default()); // needless to mut cj
-  // add_cookies(&cj, &[("ck0", "foo"), ("ck1", "bar"), ("ck2", "baz")], url)?;
+  // ut::cookies(&cj, &[("ck0", "foo"), ("ck1", "bar"), ("ck2", "baz")], url)?;
   // let client = reqwest::Client::new();
   let builder = reqwest::Client::builder().timeout(Duration::from_secs(5))
-    .cookie_provider(cj).default_headers(mk_default_headers());
+    .cookie_provider(cj).default_headers(ut::mk_default_headers());
   let client = builder.build()?;
   let q = [("q", "reqwest"), ("ie", "UTF-8")];
   let h = [("Custom-Header", "custom header")];
   let b = ""; // set body when post
-  reqwest_get_test(&client, url, &q, mk_headers(&h), b)
-}
-
-/// guess_type
-pub fn guess_type(src: &str) -> String {
-  mime_guess::from_path(Path::new(src)).first_or_octet_stream().as_ref().into()
-}
-
-/// splitext
-pub fn splitext(src: &str) -> String {
-  let p = PathBuf::from(src); // .extension via Option<&OsStr> via Option<&str>
-  let ext = p.extension().map_or("", |osstr| osstr.to_str().map_or("", |e| e));
-  format!("{}{}", if ext.len() > 0 { "." } else { "" }, ext)
+  reqwest_get_test(&client, url, &q, ut::mk_headers(&h), b)
 }
 
 /// uploader_catbox_litterbox
 /// - This test places a load on the target; use it with caution.
 // (see also ________github_memo.txt)
 pub fn uploader_catbox_litterbox(src: &str) -> Result<(), Box<dyn Error>> {
-  let dst = format!("unknown{}", splitext(src));
-  let mt = guess_type(src);
+  let dst = format!("unknown{}", ut::splitext(src));
+  let mt = ut::guess_type(src);
   println!("{} {} {}", dst, src, mt);
   let dat: Vec<u8> = fs::read(src)?;
   let part = multipart::Part::bytes(dat).file_name(dst).mime_str(&mt)?;
@@ -146,10 +68,10 @@ pub fn uploader_catbox_litterbox(src: &str) -> Result<(), Box<dyn Error>> {
   let cj = Arc::new(cookie::Jar::default()); // needless to mut cj
   // let client = reqwest::Client::new();
   let builder = reqwest::Client::builder().timeout(Duration::from_secs(5))
-    .cookie_provider(cj).default_headers(mk_default_headers());
+    .cookie_provider(cj).default_headers(ut::mk_default_headers());
   let client = builder.build()?;
   let h = [("Accept-Language", "ja,en-US;q=0.9,en;q=0.8")];
-  let hdrs = mk_headers(&h);
+  let hdrs = ut::mk_headers(&h);
   Runtime::new()?.block_on((async || -> Result<(), Box<dyn Error>> {
     let resp = client.post(url_post).headers(hdrs).multipart(mp).send().await?;
     println!("Status: {}", resp.status()); // 200 412 500
@@ -163,9 +85,15 @@ pub fn uploader_catbox_litterbox(src: &str) -> Result<(), Box<dyn Error>> {
 /// uploader_test
 pub fn uploader_test(_rt: &TkTopLevel) -> Result<(), Box<dyn Error>> {
   assert_eq!(reqwest_builder_test()?, ());
-
+/*
   // This test places a load on the target; use it with caution.
-  // assert_eq!(uploader_catbox_litterbox("resource/ruby_200x200.png")?, ());
+  let res = "resource/ruby_200x200.png";
+  let wd = std::env::var("TCL_WKTK").map_or_else(|_err| {
+    ".".into()
+  }, |tcl_wktk| tcl_wktk);
+  let p = format!("{}/{}", wd, res);
+  assert_eq!(uploader_catbox_litterbox(&p)?, ());
+*/
   Ok(())
 }
 
