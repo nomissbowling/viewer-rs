@@ -7,6 +7,7 @@ use std::{result::Result, error::Error};
 use std::time::Duration;
 use std::sync::Arc;
 
+use wktk::{core::*, wk};
 use rstk::{self, *};
 use mime_guess;
 use reqwest::{self, multipart, cookie, header, Client};
@@ -159,64 +160,8 @@ pub fn uploader_catbox_litterbox(src: &str) -> Result<(), Box<dyn Error>> {
   })())
 }
 
-/// downloader
-/// - likes resource/dl_image.tcl
-pub fn downloader(lbl: &str, im: &str, uri: &str) ->
-  Result<(), Box<dyn Error>> {
-  let l = ask_safely(&format!("set_img_uri {} {} {{{}}}", lbl, im, uri));
-  println!("length: {}", l);
-  Ok(())
-}
-
-/// canvas_toplevel
-pub fn canvas_toplevel(rt: &TkTopLevel, cv: &str, cl: &str, im: &str,
-  sz: (u64, u64)) -> String {
-  ask_safely(&format!("canvas_toplevel {} {} {} {} {} {}",
-    rt.id(), cv, cl, im, sz.0, sz.1))
-}
-
-/// rstk_test
-pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
-  let w = mk_toplevel_with_id(rt, &mk_id(t));
-  w.title(t);
-  let ((x, y), sz) = ((200, 150), (800, 600));
-  // re-position before first geometry
-  let (x, y) = if t.ends_with("test") { (x / 2, y / 2) } else { (x, y) };
-  w.geometry(sz.0, sz.1, x, y);
-  // re-set size after first geometry
-  let z = if t.ends_with("test") { (sz.0 / 2, sz.1 / 2) } else { sz };
-/*
-  rstk::tell_wish(&format!("wm geometry {} {}x{}", w.id(), z.0, z.1)); // +x+y
-  rstk::tell_wish("update idletasks"); // force change geometry to ask_wish
-  let g = ask_safely(&format!("wm geometry {}", w.id()));
-*/
-  let g = ask_safely(&format!("wm_size {} {} {}", w.id(), z.0, z.1));
-  println!("geometry: {} {} {}", g, w.id(), t);
-
-  let p = if t.ends_with("lib") { "center" }
-    else { if t.ends_with("test") { "lb" } else { "rt" } };
-
-  // w before move
-  let fql = canvas_toplevel(&w, ".cv", ".lbl", p, (sz.0 / 2, sz.1 / 2));
-  assert_eq!(downloader(&fql, p, "https://files.catbox.moe/riqo8l.png")?, ());
-
-  let btn = mk_button_with_id(&w, ".mybtn");
-  btn.text(p);
-  btn.grid().layout();
-  let lbl = mk_label_with_id(&w, ".mylbl");
-  lbl.text(t);
-  lbl.grid().layout();
-
-//  let title = t.to_string(); // to keep lifetime (used w finialy before move)
-  btn.clone().command(move || { // must clone btn before move
-/*
-    let g = ask_safely(&format!("wm_loc {} {}", w.id(), btn.cget("text")));
-    println!("geometry: {} {} {}", g, w.id(), title);
-*/
-    let g = ask_safely(&format!("on_btn_clicked {} {}", btn.id(), w.id()));
-    println!("geometry: {}", g);
-  });
-
+/// uploader_test
+pub fn uploader_test(_rt: &TkTopLevel) -> Result<(), Box<dyn Error>> {
   assert_eq!(reqwest_builder_test()?, ());
 
   // This test places a load on the target; use it with caution.
@@ -224,112 +169,12 @@ pub fn rstk_test(rt: &TkTopLevel, t: &str) -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
-/// topmost
-pub fn topmost(w: &TkTopLevel) -> Result<(), Box<dyn Error>> {
-  let c = format!("wm attributes {0} -topmost 1; raise {0}; focus -force {0}",
-    w.id());
-  rstk::tell_wish(&c);
-  Ok(())
-}
-
-/// wish_toplevel
-pub fn wish_toplevel(w: u64, h: u64) -> Result<TkTopLevel, Box<dyn Error>> {
-  rstk::start_wish().map_or(
-    Err("Can not start wish. Tcl/Tk is not installed ?".into()),
-    |rt| { // place toplevel root window to right bottom (no care multi screen)
-/*
-      let scw = ask_safely("winfo screenwidth .").parse::<u64>()?;
-      let sch = ask_safely("winfo screenheight .").parse::<u64>()?;
-      rt.geometry(w, h, (scw - w).try_into()?, (sch - h).try_into()?);
-*/
-      sources(None, "resource", vec![
-        "net/dl_https.tcl", "wk/prepare_funcs.tcl", "wk/canvas_toplevel.tcl",
-        "etc/custom.tcl"]);
-      let scwh = ask_safely(&format!("wm_sizeloc {} {} {} rb", rt.id(), w, h));
-      println!("desktop: {}", scwh);
-      let _fql = canvas_toplevel(&rt, ".cv", ".lbl", "center", (w, h));
-      Ok(rt)
-    }
-  )
-}
-
-/// sources
-/// - cwd: (None: env TCL_WKTK or current) or Some(cwd)
-/// - p: middle path to sources
-/// - srcs: vec sources
-pub fn sources(cwd: Option<&str>, p: &str, srcs: Vec<&str>) {
-  let wd = cwd.map_or_else(|| std::env::var("TCL_WKTK").map_or_else(|_err| {
-    ask_safely("set current [file dirname [file normalize [info script]]]");
-    "$current".into()
-  }, |tcl_wktk| tcl_wktk), |wd| wd.into());
-  srcs.into_iter().for_each(|src| {
-    rstk::tell_wish(&format!(
-      "source -encoding utf-8 [file join {} {} {}]", wd, p, src));
-  });
-}
-
-/// mk_id
-pub fn mk_id(t: &str) -> String {
-  format!(".{}", t.replace(" ", "_"))
-}
-
-/// mk_with_checked_id
-pub fn mk_with_checked_id(w: &str, p: &impl TkWidget, id: &str) -> String {
-  let wid = if id.starts_with(".") { id }
-    else { eprintln!("{} id forget [.]{}", w, id); &format!(".{}", id) };
-  ask_safely(&format!("{} [idchild {} {}]", w, p.id(), wid))
-}
-
-/// mk_toplevel_with_id
-pub fn mk_toplevel_with_id(p: &impl TkWidget, id: &str) -> TkTopLevel {
-  TkTopLevel{id: mk_with_checked_id("toplevel", p, id)}
-}
-
-/// mk_frame_with_id
-pub fn mk_frame_with_id(p: &impl TkWidget, id: &str) -> TkFrame {
-  TkFrame{id: mk_with_checked_id("ttk::frame", p, id)}
-}
-
-/// mk_button_with_id
-pub fn mk_button_with_id(p: &impl TkWidget, id: &str) -> TkButton {
-  TkButton{id: mk_with_checked_id("ttk::button", p, id)}
-}
-
-/// mk_label_with_id
-pub fn mk_label_with_id(p: &impl TkWidget, id: &str) -> TkLabel {
-  TkLabel{id: mk_with_checked_id("ttk::label", p, id)}
-}
-
-/// ask_safely
-pub fn ask_safely(q: &str) -> String {
-  // rstk::ask_wish(&q) // not flushed (catch another output)
-  rstk::ask_wish(&format!("puts [{}]; flush stdout", q)) // safely
-}
-
-/// ask_bin_safely (as base64 encoded)
-pub fn ask_bin_safely(q: &str) -> String {
-  ask_safely(&format!("binary encode base64 -maxlen 0 [{}]", q))
-}
-
-/// ask_safely_test (to_string_lossy broken when binary: must encode base64)
-pub fn ask_safely_test() -> Result<(), Box<dyn Error>> {
-  let tcl = "binary format c* {72 101 108 108 111 0 255}";
-/*
-  let s = ask_safely(tcl);
-  // assert_eq!(s, "Hello\x00\xff"); // outof range (can not compile)
-  assert_eq!(s.as_bytes(), b"Hello\x00\xff"); // not match at \xff
-*/
-  let e = ask_bin_safely(tcl);
-  assert_eq!(e, "SGVsbG8A/w=="); // base64 encoded 'Hello\x00\xff'
-  Ok(())
-}
-
 /// lib_test
 pub fn lib_test() -> Result<(), Box<dyn Error>> {
   let rt = wish_toplevel(320, 240)?;
-  assert_eq!(ask_safely_test()?, ());
   assert_eq!(rstk_test(&rt, "test lib")?, ());
-  topmost(&rt)?;
+  assert_eq!(uploader_test(&rt)?, ());
+  wk::topmost(&rt)?;
   rstk::mainloop();
   let act: Act = serde_json::from_str(r#"{"id":"abc","list":["wx","yz"]}"#)?;
   assert_eq!(format!("{}", &act), r#"{"act":"abc","lst":["wx","yz"]}"#);

@@ -8,6 +8,8 @@
 //! - cargo build --bin viewer --release
 //!
 
+use wktk::core::*;
+// use rstk::*;
 use viewer::core::*;
 
 use std::{result::Result, error::Error};
@@ -20,6 +22,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 /// viewer test
 pub fn viewer_test(rt: &rstk::TkTopLevel) -> Result<(), Box<dyn Error>> {
   assert_eq!(rstk_test(rt, "test viewer test")?, ()); // same as lib
+  assert_eq!(uploader_test(&rt)?, ());
   Ok(())
 }
 
@@ -27,6 +30,8 @@ pub fn viewer_test(rt: &rstk::TkTopLevel) -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
   use std::{result::Result, error::Error};
+  use wktk::{core::*, wk};
+  use rstk;
   use viewer::core::*; // lib
   use crate::*; // main
 
@@ -35,8 +40,9 @@ mod tests {
   fn test_viewer() -> Result<(), Box<dyn Error>> {
     let rt = wish_toplevel(640, 480)?;
     assert_eq!(rstk_test(&rt, "test viewer")?, ()); // same as lib
+    assert_eq!(uploader_test(&rt)?, ());
     assert_eq!(viewer_test(&rt)?, ());
-    topmost(&rt)?;
+    wk::topmost(&rt)?;
     rstk::mainloop();
     Ok(())
   }

@@ -14,7 +14,9 @@ Links
 Requirements
 ------------
 
-optional environment TCL_WKTK={path to your project}
+- git clone https://github.com/nomissbowling/wktk-rs.git
+- (set environment) TCL_WKTK={path to wktk-rs}
+
 
 - [https://crates.io/crates/wktk](https://crates.io/crates/wktk)
 - [https://github.com/nomissbowling/wktk-rs](https://github.com/nomissbowling/wktk-rs)

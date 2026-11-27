@@ -1,6 +1,6 @@
 [package]
 name = "viewer"
-version = "0.0.13" # change with html_root_url in lib.rs
+version = "0.0.14" # change with html_root_url in lib.rs
 edition = "2024"
 authors = ["nomissbowling <nomissbowling@yahoo.co.jp>"]
 
@@ -21,6 +21,7 @@ readme = "README.md"
 name = "viewer"
 
 [dependencies]
+wktk = { version = "=0.0.1" }
 rstk = { version = "=0.3.0" }
 mime_guess = { version = "=2.0.5" }
 serde_json = { version = "=1.0.154" }
